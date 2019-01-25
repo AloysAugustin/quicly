@@ -367,6 +367,7 @@ int main(int argc, char **argv)
 
     quicly_amend_ptls_context(quic_ctx.tls);
 
+    subtest("ringbuf", test_ringbuf);
     subtest("next-packet-number", test_next_packet_number);
     subtest("ranges", test_ranges);
     subtest("frame", test_frame);

@@ -25,6 +25,7 @@ SET(QUICLY_LIBRARY_FILES
     lib/quicly.c
     lib/ranges.c
     lib/recvstate.c
+    lib/ringbuf.c
     lib/sendstate.c
     lib/sentmap.c
     lib/streambuf.c)
@@ -35,6 +36,7 @@ SET(UNITTEST_SOURCE_FILES
     t/maxsender.c
     t/loss.c
     t/ranges.c
+    t/ringbuf.c
     t/sentmap.c
     t/simple.c
     t/stream-concurrency.c

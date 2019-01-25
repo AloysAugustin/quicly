@@ -2984,7 +2984,7 @@ int quicly_send(quicly_conn_t *conn, quicly_datagram_t **packets, size_t *num_pa
         uint32_t cwnd = cc_get_cwnd(&conn->egress.cc.ccv);
         if (conn->egress.sentmap.bytes_in_flight < cwnd)
             s.send_window = cwnd - conn->egress.sentmap.bytes_in_flight;
-        fprintf(stderr, "cwnd: %u in_flight: %lu\n", cwnd, conn->egress.sentmap.bytes_in_flight);
+        //fprintf(stderr, "cwnd: %u in_flight: %lu\n", cwnd, conn->egress.sentmap.bytes_in_flight);
     }
 
     /* If TLP or RTO, ensure there's enough send_window to send */

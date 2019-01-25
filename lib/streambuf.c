@@ -24,13 +24,6 @@
 #include <string.h>
 #include "quicly/streambuf.h"
 
-static void shift_bytes(ptls_buffer_t *buf, size_t delta)
-{
-    assert(delta <= buf->off);
-    buf->off -= delta;
-    memmove(buf->base, buf->base + delta, buf->off);
-}
-
 int quicly_streambuf_create(quicly_stream_t *stream, size_t sz)
 {
     quicly_streambuf_t *sbuf;
