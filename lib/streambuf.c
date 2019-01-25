@@ -108,6 +108,9 @@ ptls_iovec_t quicly_streambuf_ingress_get(quicly_stream_t *stream)
         avail = quicly_ringbuf_used_one_block(&sbuf->ingress);
     } else if (stream->recvstate.data_off < stream->recvstate.received.ranges[0].end) {
         avail = stream->recvstate.received.ranges[0].end - stream->recvstate.data_off;
+        if (avail > quicly_ringbuf_used_one_block(&sbuf->ingress)) {
+            avail = quicly_ringbuf_used_one_block(&sbuf->ingress);
+        }
     } else {
         avail = 0;
     }
