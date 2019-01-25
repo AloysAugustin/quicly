@@ -2424,7 +2424,10 @@ static int send_stream_data(quicly_stream_t *stream, struct st_quicly_send_conte
         }
     }
     { /* cap the capacity to the current range */
-        uint64_t range_capacity = stream->sendstate.pending.ranges[0].end - !stream->sendstate.is_open - off;
+        uint64_t range_capacity = stream->sendstate.pending.ranges[0].end - off;
+        //if (stream->sendstate.pending.num_ranges == 1) {
+            range_capacity -= !stream->sendstate.is_open;
+        //}
         if (capacity > range_capacity)
             capacity = range_capacity;
     }
@@ -2981,6 +2984,7 @@ int quicly_send(quicly_conn_t *conn, quicly_datagram_t **packets, size_t *num_pa
         uint32_t cwnd = cc_get_cwnd(&conn->egress.cc.ccv);
         if (conn->egress.sentmap.bytes_in_flight < cwnd)
             s.send_window = cwnd - conn->egress.sentmap.bytes_in_flight;
+        fprintf(stderr, "cwnd: %u in_flight: %lu\n", cwnd, conn->egress.sentmap.bytes_in_flight);
     }
 
     /* If TLP or RTO, ensure there's enough send_window to send */
@@ -3800,7 +3804,7 @@ int quicly_receive(quicly_conn_t *conn, quicly_decoded_packet_t *packet)
             quicly_stream_t *stream = quicly_get_stream(conn, -(quicly_stream_id_t)(1 + 2));
             assert(stream != NULL);
             quicly_streambuf_t *buf = stream->data;
-            if (buf->egress.buf.off == 0) {
+            if (quicly_ringbuf_used(&buf->egress.buf) == 0) {
                 if ((ret = quicly_sentmap_prepare(&conn->egress.sentmap, conn->egress.packet_number, now,
                                                   QUICLY_EPOCH_HANDSHAKE)) != 0)
                     goto Exit;

@@ -40,9 +40,9 @@ int quicly_streambuf_create(quicly_stream_t *stream, size_t sz)
 
     if ((sbuf = malloc(sz)) == NULL)
         return PTLS_ERROR_NO_MEMORY;
-    ptls_buffer_init(&sbuf->egress.buf, "", 0);
+    quicly_ringbuf_init(&sbuf->egress.buf, 1024);
     sbuf->egress.max_stream_data = 0;
-    ptls_buffer_init(&sbuf->ingress, "", 0);
+    quicly_ringbuf_init(&sbuf->ingress, 1024);
     if (sz != sizeof(*sbuf))
         memset((char *)sbuf + sizeof(*sbuf), 0, sz - sizeof(*sbuf));
 
@@ -54,8 +54,8 @@ void quicly_streambuf_destroy(quicly_stream_t *stream)
 {
     quicly_streambuf_t *sbuf = stream->data;
 
-    ptls_buffer_dispose(&sbuf->egress.buf);
-    ptls_buffer_dispose(&sbuf->ingress);
+    quicly_ringbuf_dispose(&sbuf->egress.buf);
+    quicly_ringbuf_dispose(&sbuf->ingress);
     free(sbuf);
     stream->data = NULL;
 }
@@ -63,24 +63,14 @@ void quicly_streambuf_destroy(quicly_stream_t *stream)
 void quicly_streambuf_egress_shift(quicly_stream_t *stream, size_t delta)
 {
     quicly_streambuf_t *sbuf = stream->data;
-    shift_bytes(&sbuf->egress.buf, delta);
+    quicly_ringbuf_shift(&sbuf->egress.buf, delta);
     quicly_stream_sync_sendbuf(stream, 0);
 }
 
 int quicly_streambuf_egress_emit(quicly_stream_t *stream, size_t off, void *dst, size_t *len, int *wrote_all)
 {
     quicly_streambuf_t *sbuf = stream->data;
-
-    assert(off < sbuf->egress.buf.off);
-
-    if (off + *len < sbuf->egress.buf.off) {
-        *wrote_all = 0;
-    } else {
-        *len = sbuf->egress.buf.off - off;
-        *wrote_all = 1;
-    }
-    memcpy(dst, sbuf->egress.buf.base + off, *len);
-
+    quicly_ringbuf_emit(&sbuf->egress.buf, off, dst, len, wrote_all);
     return 0;
 }
 
@@ -91,7 +81,7 @@ int quicly_streambuf_egress_write(quicly_stream_t *stream, const void *src, size
 
     assert(stream->sendstate.is_open);
 
-    ptls_buffer_pushv(&sbuf->egress.buf, src, len);
+    quicly_ringbuf_push(&sbuf->egress.buf, src, len);
     sbuf->egress.max_stream_data += len;
     if ((ret = quicly_stream_sync_sendbuf(stream, 1)) != 0)
         goto Exit;
@@ -112,7 +102,7 @@ void quicly_streambuf_ingress_shift(quicly_stream_t *stream, size_t delta)
 {
     quicly_streambuf_t *sbuf = stream->data;
 
-    shift_bytes(&sbuf->ingress, delta);
+    quicly_ringbuf_shift(&sbuf->ingress, delta);
     quicly_stream_sync_recvbuf(stream, delta);
 }
 
@@ -122,27 +112,21 @@ ptls_iovec_t quicly_streambuf_ingress_get(quicly_stream_t *stream)
     size_t avail;
 
     if (quicly_recvstate_transfer_complete(&stream->recvstate)) {
-        avail = sbuf->ingress.off;
+        avail = quicly_ringbuf_used_one_block(&sbuf->ingress);
     } else if (stream->recvstate.data_off < stream->recvstate.received.ranges[0].end) {
         avail = stream->recvstate.received.ranges[0].end - stream->recvstate.data_off;
     } else {
         avail = 0;
     }
 
-    return ptls_iovec_init(sbuf->ingress.base, avail);
+    return ptls_iovec_init(sbuf->ingress.data + sbuf->ingress.start_off, avail);
 }
 
 int quicly_streambuf_ingress_receive(quicly_stream_t *stream, size_t off, const void *src, size_t len)
 {
     quicly_streambuf_t *sbuf = stream->data;
+    if (len != 0)
+        return quicly_ringbuf_set(&sbuf->ingress, off, src, len);
 
-    if (len != 0) {
-        int ret;
-        if ((ret = ptls_buffer_reserve(&sbuf->ingress, off + len - sbuf->ingress.off)) != 0)
-            return ret;
-        memcpy(sbuf->ingress.base + off, src, len);
-        if (sbuf->ingress.off < off + len)
-            sbuf->ingress.off = off + len;
-    }
     return 0;
 }

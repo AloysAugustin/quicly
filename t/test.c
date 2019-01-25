@@ -251,9 +251,17 @@ size_t decode_packets(quicly_decoded_packet_t *decoded, quicly_datagram_t **raw,
     return dc;
 }
 
-int buffer_is(ptls_buffer_t *buf, const char *s)
+int buffer_is(quicly_ringbuf_t *buf, const char *s)
 {
-    return buf->off == strlen(s) && memcmp(buf->base, s, buf->off) == 0;
+    int wrote_all = 0;
+    size_t len = quicly_ringbuf_used(buf);
+    char *dst = malloc(quicly_ringbuf_used(buf));
+    assert(dst);
+    quicly_ringbuf_emit(buf, 0, dst, &len, &wrote_all);
+    int result = wrote_all && len == strlen(s) && memcmp(dst, s, len) == 0;
+    free(dst);
+
+    return result;
 }
 
 size_t transmit(quicly_conn_t *src, quicly_conn_t *dst)
