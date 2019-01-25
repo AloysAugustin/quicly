@@ -748,7 +748,7 @@ int main(int argc, char **argv)
     if (req_paths[0] == NULL)
         req_paths[0] = "/";
 
-    ctx.event_log.mask = UINT64_MAX;
+    ctx.event_log.mask = 0;
     ctx.event_log.cb = quicly_default_event_log;
     quicly_default_event_log_fp = stderr;
 
