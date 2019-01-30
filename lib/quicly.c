@@ -392,6 +392,25 @@ static uint8_t encode_cid_length(size_t len)
     return len != 0 ? (uint8_t)len - 3 : 0;
 }
 
+static void egress_debug(quicly_conn_t *conn) {
+    fprintf(stderr, "now: %lu\n", now);
+    fprintf(stderr, "sentmap data: in flight: %ld, max_lost_pn: %ld, max_data: permitted %lu, sent %lu\n",
+        conn->egress.sentmap.bytes_in_flight, conn->egress.max_lost_pn, conn->egress.max_data.permitted, conn->egress.max_data.sent);
+    quicly_sentmap_iter_t it;
+    quicly_sentmap_init_iter(&conn->egress.sentmap, &it);
+    int count = 0;
+    while (it.p != &quicly_sentmap__end_iter) {
+        quicly_sent_packet_t *packet = &it.p->data.packet;
+        //fprintf(stderr, "packet in sentmap: pn: %lu sent: %ld bytes: %u\n", packet->packet_number, packet->sent_at, packet->bytes_in_flight);
+        quicly_sentmap_skip(&it);
+        count ++;
+    }
+    fprintf(stderr, "%d packets in sentmap\n", count);
+    fprintf(stderr, "rtt: min %u smooth %u var %u latest %u\n",
+        conn->egress.loss.rtt.minimum, conn->egress.loss.rtt.smoothed, conn->egress.loss.rtt.variance, conn->egress.loss.rtt.latest);;
+    fprintf(stderr, "cc cwnd %u srtt %d\n", conn->egress.cc.ccv.ccvc.ccv.snd_cwnd, conn->egress.cc.ccv.ccvc.ccv.t_srtt);
+}
+
 size_t quicly_decode_packet(quicly_decoded_packet_t *packet, const uint8_t *src, size_t len, size_t host_cidl)
 {
     const uint8_t *src_end = src + len;
@@ -2915,6 +2934,8 @@ int quicly_send(quicly_conn_t *conn, quicly_datagram_t **packets, size_t *num_pa
 
     update_now(conn->super.ctx);
 
+    egress_debug(conn);
+
     LOG_CONNECTION_EVENT(conn, QUICLY_EVENT_TYPE_SEND, INT_EVENT_ATTR(STATE, (int64_t)conn->super.state));
 
     if (conn->super.state >= QUICLY_STATE_CLOSING) {
@@ -2984,7 +3005,6 @@ int quicly_send(quicly_conn_t *conn, quicly_datagram_t **packets, size_t *num_pa
         uint32_t cwnd = cc_get_cwnd(&conn->egress.cc.ccv);
         if (conn->egress.sentmap.bytes_in_flight < cwnd)
             s.send_window = cwnd - conn->egress.sentmap.bytes_in_flight;
-        fprintf(stderr, "cwnd: %u in_flight: %lu\n", cwnd, conn->egress.sentmap.bytes_in_flight);
     }
 
     /* If TLP or RTO, ensure there's enough send_window to send */
